@@ -1,88 +1,50 @@
 import re
 
-def parse_auth_results(auth_header):
-    results = {
-        "spf": {"result": "none", "risk": "low"},
-        "dkim": {"result": "none", "risk": "low"},
-        "dmarc": {"result": "none", "risk": "medium"}
-    }
-
-    if not auth_header:
-        return results
-
-    auth_header = auth_header.lower()
-
-    def extract(proto):
-        match = re.search(rf"{proto}=(pass|fail|softfail|neutral)", auth_header)
-        return match.group(1) if match else "none"
-
-    spf = extract("spf")
-    dkim = extract("dkim")
-    dmarc = extract("dmarc")
-
-    results["spf"]["result"] = spf
-    results["dkim"]["result"] = dkim
-    results["dmarc"]["result"] = dmarc
-
-    if spf == "fail":
-        results["spf"]["risk"] = "high"
-    elif spf == "softfail":
-        results["spf"]["risk"] = "medium"
-    elif spf == "neutral":
-        results["spf"]["risk"] = "low"
-    else:
-        results["spf"]["risk"] = "none"
-
-    if dkim == "fail":
-        results["dkim"]["risk"] = "high"
-    elif dkim == "pass":
-        results["dkim"]["risk"] = "none"
-
-    if dmarc == "fail":
-        results["dmarc"]["risk"] = "critical"
-    elif dmarc == "pass":
-        results["dmarc"]["risk"] = "none"
-
-    return results
-
-
-def check_from_return_mismatch(from_header, return_path):
-    if not from_header or not return_path:
-        return False
-
-    from_domain = re.search(r"@([\w\.-]+)", from_header)
-    return_domain = re.search(r"@([\w\.-]+)", return_path)
-
-    if not from_domain or not return_domain:
-        return False
-
-    return from_domain.group(1).lower() != return_domain.group(1).lower()
-
-
-def extract_sender_ip(received_headers):
-    if not received_headers:
-        return None
-
-    for header in reversed(received_headers):
-        match = re.search(r"\b\d{1,3}(?:\.\d{1,3}){3}\b", header)
-        if match:
-            return match.group(0)
-
-    return None
-
+def extract_domain(email):
+    if not email or "@" not in email:
+        return ""
+    return email.split("@")[-1].strip(">").strip().lower()
 
 def analyze_headers(parsed_email):
-    headers = parsed_email.get("headers", {})
+    results = {}
 
-    auth_results = parse_auth_results(headers.get("Authentication-Results"))
-    from_return_mismatch = check_from_return_mismatch(
-        headers.get("From"),
-        headers.get("Return-Path")
-    )
-    sender_ip = extract_sender_ip(headers.get("Received"))
+    # ---------------- FROM / REPLY-TO ----------------
+    from_header = parsed_email.get("From", "")
+    reply_to = parsed_email.get("Reply-To", "")
 
-    return {
-        "authentication": auth_results,
-        "from_return_mismatch": from_return_mismatch,
-        "sender_ip": sender_ip
-    }
+    from_domain = extract_domain(from_header)
+    reply_to_domain = extract_domain(reply_to)
+
+    results["from_domain"] = from_domain
+    results["reply_to_domain"] = reply_to_domain
+
+    # ---------------- AUTHENTICATION RESULTS ----------------
+    auth_results = parsed_email.get("Authentication-Results", "").lower()
+
+    # SPF
+    if "spf=pass" in auth_results:
+        results["SPF"] = {"result": "pass"}
+    elif "spf=fail" in auth_results:
+        results["SPF"] = {"result": "fail"}
+    else:
+        results["SPF"] = {"result": "unknown"}
+
+    # DKIM
+    if "dkim=pass" in auth_results:
+        results["DKIM"] = {"result": "pass"}
+    elif "dkim=fail" in auth_results or "dkim=timeout" in auth_results:
+        results["DKIM"] = {"result": "fail"}
+    else:
+        results["DKIM"] = {"result": "unknown"}
+
+    # DMARC + AUTH DOMAIN
+    if "dmarc=pass" in auth_results:
+        results["DMARC"] = "pass"
+    else:
+        results["DMARC"] = "fail"
+
+    # Extract auth domain (header.from=example.com)
+    match = re.search(r"header\.from=([a-z0-9\.-]+)", auth_results)
+    results["auth_domain"] = match.group(1) if match else ""
+
+    return results
