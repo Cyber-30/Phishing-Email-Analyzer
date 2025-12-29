@@ -36,7 +36,7 @@ Designed to simulate **Tier-1 / Tier-2 SOC analyst workflows**.
 ```bash
 git clone https://github.com/yourusername/phishing-email-analyzer.git
 cd phishing-email-analyzer
-pip install spf dkim
+pip install -r requirements.txt
 ```
 
 ## ▶️ Usage
