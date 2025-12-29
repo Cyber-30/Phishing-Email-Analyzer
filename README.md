@@ -25,7 +25,7 @@ Designed to simulate **Tier-1 / Tier-2 SOC analyst workflows**.
 ## 📂 Project Structure
 
 <p align="center">
-  <img src="img/Screenshot from 2025-12-29 17-44-13.png" alt="Phishing Email Analyzer" width="600">
+  <img src="img/Screenshot from 2025-12-29 17-45-47.png" alt="Phishing Email Analyzer" width="600">
 </p>
 
 
